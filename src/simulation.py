@@ -151,7 +151,7 @@ def get_psf(psf_pars):
     # ).shear(g1=psf_pars[0], g2=psf_pars[1])
     
     # One example of CSST-like PSF
-    with fits.open('../data/csst_psf_9999.fits') as f:
+    with fits.open('../../data/csst_psf_9999.fits') as f:
         psf_im = f[0].data
         
     img = galsim.ImageF(psf_im, scale=config.simulation['pixel_size'])

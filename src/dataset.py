@@ -23,7 +23,7 @@ def compute_noise(noisy_im,clean_im):
     return sig_sky, mean_sky
 
 
-#### Dataset for training. You need to customize it
+#### Dataset for CNN training. You need to customize it
 class ShapeDataset(Dataset):
     
     def __init__(self, gal_pars, psf_pars):
@@ -73,7 +73,8 @@ class ShapeDataset(Dataset):
                 'snr': snr,
                 'id': idx}
     
-    
+
+### Dataset for shear measurement
 class ShearDataset(Dataset):
     def __init__(self, shear_set, gal_set):
         
@@ -123,3 +124,72 @@ class ShearDataset(Dataset):
                 'snr': snr,
                 'id': idx}
     
+
+### Dataset for NN calibration
+class CaliDataset(Dataset):
+    def __init__(self, shear_set, gal_set):
+        
+        self.shear_set = shear_set
+        self.gal_set = gal_set
+
+    def __len__(self):
+        return self.gal_set["e1"].shape[0]*self.gal_set["e2"].shape[1]
+    
+    def __set_pars(self, idx):
+        
+        case_idx = idx//self.gal_set["e1"].shape[1]
+        real_idx = idx%self.gal_set["e1"].shape[1]
+        
+        self.param_gal = {}
+        self.param_gal["hlr_disk"] = self.gal_set["hlr_disk"][case_idx][0]
+        self.param_gal["mag_i"] = self.gal_set["mag_i"][case_idx][0]
+        self.param_gal["e1"] = self.gal_set["e1"][case_idx,real_idx]
+        self.param_gal["e2"] = self.gal_set["e2"][case_idx,real_idx]
+        
+        self.shear = self.shear_set['shear'][case_idx,:]
+
+        self.param_psf = {}
+        self.param_psf['randint'] = self.gal_set['randint'][case_idx]
+
+    def __getitem__(self, idx):
+        
+        self.__set_pars(idx)
+
+        gal_image, clean_gal, psf_image, label_ = get_sim(
+            self.param_gal,
+            self.param_psf,
+            shear=self.shear,
+        )
+
+        label = np.array([label_[0]/0.6,
+                  label_[1]/0.6,
+                  label_[2]/1.2,
+                  label_[3]/25])
+        
+        sig_sky,_ = compute_noise(gal_image,clean_gal)
+        snr = np.sqrt(np.sum(np.power(clean_gal,2))/sig_sky**2)
+        
+        return {'gal_image': gal_image[None], 
+                'psf_image': psf_image[None], 
+                'label': label, 
+                'snr': snr,
+                'id': idx}
+    
+
+### Dataset for NN calibration training
+class NNDataset(Dataset):
+    def __init__(self, dataset):
+        self.classes_frame = dataset
+
+    def __len__(self):
+        return self.classes_frame['true_shear'].shape[0]
+
+    def __getitem__(self, idx):
+        #print(idx)
+        
+        measured_gal = self.classes_frame['prediction'][idx,:].astype(np.float32)
+        shear = self.classes_frame['true_shear'][idx].astype(np.float32)
+
+        return {'input': measured_gal, 
+                'label': shear/0.1, 
+                'id': idx}
