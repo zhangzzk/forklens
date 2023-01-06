@@ -1,5 +1,5 @@
 # Forklens
-### A convolutional neural network (CNN) to measure weak gravitational lensing signal, namely cosmic shear.
+### A deep-learning-based method to measure weak gravitational lensing signal.
 
 ------------------------------------------------------------------------------------------
 
