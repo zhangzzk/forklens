@@ -1,23 +1,22 @@
-
-
 train = \
 {
 
     #
-    'epoch_number': 600,
+    'epoch_number': 150,
     'initial_learning_rate': 0.01,
-    'adam_betas': (0.9,0.999),
-    'batch_size': 200,
+    'momentum': 0.9,
+    
+    'batch_size': 250,
     'validation_split': 0.1,
     'feature_number': 4,
     
     'device': 'cuda:0',
     'gpu_number': 2,
-    'workers': 8,
+    'workers': 20,
     
     'save_model': True,
     'model_path': './model/',
-    'model_name': 'example_model',
+    'model_name': 'test_model',
     
 }
 
@@ -34,7 +33,5 @@ simulation = \
     'dark_noise': 2.6,
     'bias_level': 500,
     'gain': 1.1,
-    
-    # 'image_number': 10000,
     
 }

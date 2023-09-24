@@ -45,7 +45,7 @@ def ApplyGain(img, gain=1, nsecy = 2, nsecx=8, seed=202102, logger=None):
 #set noiseModel for CSST-image
 def addDetNoise(img):
 
-    seed=20221223+np.random.randint(10000)
+    seed=20230922+np.random.randint(100000000)
     rng_poisson = galsim.BaseDeviate(seed)
 
     if config.simulation['sky_background'] != None:

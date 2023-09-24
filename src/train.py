@@ -184,7 +184,8 @@ class Train(object):
         return combined_pred, combined_true, combined_snr, epoch_loss
     
     
-    
+###############################################
+###
     
     
 class MSBLoss(nn.Module):
@@ -193,10 +194,16 @@ class MSBLoss(nn.Module):
         
     def forward(self,x,y):
         
-        if torch.std(y) != 0:
+        if torch.std(y,axis=1).any() != 0:
             print('Waring!')
-            print(y)
-        return (torch.mean(x) - torch.mean(y))**2
+            # print(y)
+        
+        # print(x.shape)
+        # print(y.shape)
+        l = torch.mean(((torch.mean(x,axis=1)-torch.mean(y,axis=1))**2),axis=0)
+        # print(torch.mean(x,axis=1)-torch.mean(y,axis=1))
+        # print(l)
+        return l
     
     
 class NNTrain(object):
@@ -206,7 +213,7 @@ class NNTrain(object):
         # Device Options   
         self.workers = config.train['workers']
         self.device = torch.device(config.train['device'])
-        self.batch_size = config.train['batch_size']
+        self.batch_cases = config.train['batch_cases']
         self.nGPUs = config.train['gpu_number']
         
         
@@ -224,10 +231,10 @@ class NNTrain(object):
         train_indices, valid_indices = indices[split:], indices[:split]
 
         self.train_dl = DataLoader(Subset(train_ds, train_indices), 
-                              batch_size=self.batch_size, 
+                              batch_size=self.real_size*self.batch_cases, 
                               num_workers=self.workers)
         self.valid_dl = DataLoader(Subset(train_ds, valid_indices), 
-                              batch_size=self.batch_size, 
+                              batch_size=self.real_size*self.batch_cases,
                               num_workers=self.workers)
         print("Train_dl: {} Validation_dl: {}".format(len(self.train_dl), len(self.valid_dl)))
         
@@ -246,6 +253,7 @@ class NNTrain(object):
     def run(self, dataset, show_log=True):
         
         # set data loader here
+        self.real_size = dataset.real_size
         self._set_data(dataset)
         
         self.model = self.load_model()
@@ -286,15 +294,22 @@ class NNTrain(object):
     
     
     def _trainFunc(self,epoch,show_log=True):
+        
         self.model.train()
+        
         losses = []
         epoch_start = time.time()
         for i, batch in enumerate(self.train_dl):
             inputs, labels = batch['input'].float().to(self.device), \
                              batch['label'].float().to(self.device)
 
-            self.optimizer.zero_grad()             
+            self.optimizer.zero_grad()           
             outputs = self.model.forward(inputs)
+            
+            # remember to reshape it before feeding into loss calculation
+            outputs = torch.reshape(outputs,(-1,self.real_size))
+            labels = torch.reshape(labels,(-1,self.real_size))
+            
             loss = self.criterion(outputs, labels) 
             losses.append(loss.item())        
             loss = torch.sqrt(loss)           
@@ -311,14 +326,20 @@ class NNTrain(object):
 
     
     def _validFunc(self,epoch,show_log=True):
+        
         self.model.eval()
+        
         losses = []
         epoch_start = time.time()
         for i, batch in enumerate(self.valid_dl):
             inputs, labels = batch['input'].float().to(self.device), \
                              batch['label'].float().to(self.device)
-
             outputs = self.model.forward(inputs)
+            
+            # remember to reshape it before feeding into loss calculation
+            outputs = torch.reshape(outputs,(-1,self.real_size))
+            labels = torch.reshape(labels,(-1,self.real_size))
+            
             loss = self.criterion(outputs, labels)
             losses.append(loss.item())
 
@@ -331,28 +352,34 @@ class NNTrain(object):
         return epoch_loss
     
 
-    def _predictFunc(self,test_dl,MODEL,criterion=MSBLoss()):
+def cali_predict(test_dl,MODEL,criterion=MSBLoss()):
 
-        MODEL.eval()
-        losses=[]
-        for i, batch in enumerate(test_dl):
-            inputs, labels = batch['input'].float().to(self.device), \
-                             batch['label'].float().to(self.device)
-            outputs = MODEL.forward(inputs)
-            loss = criterion(outputs, labels)
-            losses.append(loss.item())
-            if i == 0:
-                ids = i
-                res = np.mean(outputs.detach().cpu().numpy(),axis=0)
-                labels_true = np.mean(labels.cpu().numpy(),axis=0)
-            else:
-                ids = np.append(ids, i)
-                res = np.vstack((res, np.mean(outputs.detach().cpu().numpy(),axis=0)))
-                labels_true = np.vstack((labels_true, np.mean(labels.cpu().numpy(),axis=0)))  
-        combined_pred = np.column_stack((ids, res))
-        combined_true = np.column_stack((ids, labels_true))
+    MODEL.eval()
+    losses=[]
+    for i, batch in enumerate(test_dl):
+        inputs, labels = batch['input'].float().to(torch.device(config.train['device'])), \
+                         batch['label'].float().to(torch.device(config.train['device']))
+        outputs = MODEL.forward(inputs)
+        
+        # remember to reshape it before feeding into loss calculation
+        outputs = torch.reshape(outputs,(-1,test_dl.dataset.real_size))
+        labels = torch.reshape(labels,(-1,test_dl.dataset.real_size))
 
-        epoch_loss = np.sqrt(sum(losses) / len(losses))
-        return combined_pred, combined_true, epoch_loss
+        loss = criterion(outputs, labels)
+        losses.append(loss.item())
+        if i == 0:
+            # ids = i
+            res = np.mean(outputs.detach().cpu().numpy(),axis=1)
+            labels_true = np.mean(labels.cpu().numpy(),axis=1)
+        else:
+            # ids = np.append(ids, i)
+            res = np.concatenate((res, np.mean(outputs.detach().cpu().numpy(),axis=1)),axis=0)
+            labels_true = np.concatenate((labels_true, np.mean(labels.cpu().numpy(),axis=1)),axis=0)  
+
+    # combined_pred = np.column_stack((ids, res))
+    # combined_true = np.column_stack((ids, labels_true))
+
+    epoch_loss = np.sqrt(sum(losses) / len(losses))
+    return res, labels_true, epoch_loss
     
 

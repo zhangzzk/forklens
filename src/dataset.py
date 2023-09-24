@@ -109,9 +109,10 @@ class ShearDataset(Dataset):
             self.param_psf,
             shear=self.shear,
         )
-
-        label = np.array([label_[0]/0.6,
-                  label_[1]/0.6,
+        
+        # note the normalization here
+        label = np.array([label_[0],
+                  label_[1],
                   label_[2]/1.2,
                   label_[3]/25])
         
@@ -160,9 +161,10 @@ class CaliDataset(Dataset):
             self.param_psf,
             shear=self.shear,
         )
-
-        label = np.array([label_[0]/0.6,
-                  label_[1]/0.6,
+        
+        # note the normalization here
+        label = np.array([label_[0],
+                  label_[1],
                   label_[2]/1.2,
                   label_[3]/25])
         
@@ -180,16 +182,21 @@ class CaliDataset(Dataset):
 class NNDataset(Dataset):
     def __init__(self, dataset):
         self.classes_frame = dataset
+        self.case_size = self.classes_frame['prediction'].shape[0]
+        self.real_size = self.classes_frame['prediction'].shape[1]
 
     def __len__(self):
-        return self.classes_frame['true_shear'].shape[0]
+        return self.case_size*self.real_size
 
     def __getitem__(self, idx):
         #print(idx)
         
-        measured_gal = self.classes_frame['prediction'][idx,:].astype(np.float32)
-        shear = self.classes_frame['true_shear'][idx].astype(np.float32)
+        idx_case = idx//self.real_size
+        idx_real = idx%self.real_size
+        
+        measured_gal = self.classes_frame['prediction'][idx_case,idx_real,:].astype(np.float32)
+        shear = self.classes_frame['true_shear'][idx_case].astype(np.float32)
 
         return {'input': measured_gal, 
-                'label': shear/0.1, 
+                'label': shear, 
                 'id': idx}
