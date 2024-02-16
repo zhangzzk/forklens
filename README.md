@@ -11,9 +11,6 @@
 
 This project is originally motivated to measure galaxy shapes (shear) and in the meantime correct the smearing of the point spread function (PSF, an effect from either/both the atmosphere and optical instrument). The code contains a custom CNN achitecture which has two input branches, fed with the observed galaxy image and PSF image, predicting several features of the galaxy (shapes, magnitude, size, etc.). Simulation in the code is built directly upon Galsim.
 
-This package does not include calibration of the raw shear measurement by CNN. An existing calibration algorithm can be found at http://cdsarc.u-strasbg.fr/viz-bin/qcat?J/A+A/621/A36.
-
-
 ## To install
 
 >> cd forklens
