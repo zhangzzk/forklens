@@ -2,7 +2,7 @@ train = \
 {
 
     #
-    'epoch_number': 150,
+    'epoch_number': 200,
     'initial_learning_rate': 0.01,
     'momentum': 0.9,
     
@@ -12,7 +12,7 @@ train = \
     
     'device': 'cuda:0',
     'gpu_number': 2,
-    'workers': 20,
+    'workers': 60,
     
     'save_model': True,
     'model_path': './model/',
@@ -24,9 +24,9 @@ simulation = \
 {
 
     #
-    'pixel_size': 0.074,
-    'galaxy_stamp_size': 128,
-    'psf_stamp_size': 48,
+    'pixel_size': 0.141,
+    'galaxy_stamp_size': 53,
+    'psf_stamp_size': 53,
     
     'read_noise': 5.0,
     'sky_background': 31.8,

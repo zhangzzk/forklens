@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: forklens
+Version: 0.0.1
+Summary: Forklens
+Author: Zekang Zhang
+Author-email: zhangzekang@shao.ac.cn
+Keywords: python,forklens
+Classifier: Development Status :: 3 - Alpha
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: Linux :: Ubuntu
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: keywords
+Dynamic: summary
+
+The first public version for a shear measurement code with CNN

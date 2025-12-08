@@ -3,14 +3,26 @@ import numpy as np
 from numpy.random import Generator, PCG64
 from astropy.io import fits
 
-import sys
 # import os
 # sys.path.append(os.path.abspath("../configs"))
 # from configs import config
-import config
+
 
 
 def AddBias(img, bias_level=500, nsecy=2, nsecx=8, seed=202102):
+    """
+    Add bias level and non-uniformity to the image.
+
+    Args:
+        img (galsim.Image): The input image.
+        bias_level (float): The mean bias level.
+        nsecy (int): Number of sections in Y direction.
+        nsecx (int): Number of sections in X direction.
+        seed (int): Random seed.
+
+    Returns:
+        galsim.Image: The image with bias added.
+    """
     # Generate Bias and its non-uniformity, and add the 16 bias values to the GS-Image
     rg = Generator(PCG64(int(seed)))
     Random16 = (rg.random(nsecy*nsecx)-0.5)*20
@@ -28,6 +40,20 @@ def AddBias(img, bias_level=500, nsecy=2, nsecx=8, seed=202102):
     return img
 
 def ApplyGain(img, gain=1, nsecy = 2, nsecx=8, seed=202102, logger=None):
+    """
+    Apply gain and gain non-uniformity to the image.
+
+    Args:
+        img (galsim.Image): The input image.
+        gain (float): The mean gain value.
+        nsecy (int): Number of sections in Y direction.
+        nsecx (int): Number of sections in X direction.
+        seed (int): Random seed.
+        logger: Logger object (unused).
+
+    Returns:
+        galsim.Image: The image with gain applied.
+    """
     # Generate Gain non-uniformity, and multipy the different factors (mean~1 with sigma~1%) to the GS-Image
     rg = Generator(PCG64(int(seed)))
     Random16 = (rg.random(nsecy*nsecx)-0.5)*0.04+1   # sigma~1%
@@ -43,13 +69,23 @@ def ApplyGain(img, gain=1, nsecy = 2, nsecx=8, seed=202102, logger=None):
 
 
 #set noiseModel for CSST-image
-def addDetNoise(img):
+def addDetNoise(img, config):
+    """
+    Add detector noise (sky background, dark noise, read noise, bias, gain) to the image.
+
+    Args:
+        img (galsim.Image): The input image.
+        config (Config): Configuration object.
+
+    Returns:
+        galsim.Image: The image with noise added.
+    """
 
     seed=20230922+np.random.randint(100000000)
     rng_poisson = galsim.BaseDeviate(seed)
 
-    if config.simulation['sky_background'] != None:
-        sky_map = config.simulation['sky_background']
+    if config.simulation.sky_background is not None:
+        sky_map = config.simulation.sky_background
         ###update-START-20221106
         sky_map = sky_map * np.ones_like(img.array)
         sky_map = galsim.Image(array=sky_map)
@@ -59,28 +95,38 @@ def addDetNoise(img):
         img += sky_map
         del sky_map
 
-    if config.simulation['dark_noise'] != None:
+    if config.simulation.dark_noise is not None:
         darkNoise = galsim.DeviateNoise(galsim.PoissonDeviate(rng_poisson, 
-                                                              config.simulation['dark_noise']))
+                                                              config.simulation.dark_noise))
         img.addNoise(darkNoise)
 
-    if config.simulation['read_noise'] != None:
+    if config.simulation.read_noise is not None:
         seed = seed+6
         rng_readout = galsim.BaseDeviate(seed)
         readNoise = galsim.GaussianNoise(rng=rng_readout, 
-                                         sigma=config.simulation['read_noise'])
+                                         sigma=config.simulation.read_noise)
         img.addNoise(readNoise)
         
-    if config.simulation['bias_level'] != None:
-        img = AddBias(img, bias_level=config.simulation['bias_level'], nsecy=1, nsecx=1, seed=seed+5)
+    if config.simulation.bias_level is not None:
+        img = AddBias(img, bias_level=config.simulation.bias_level, nsecy=1, nsecx=1, seed=seed+5)
 
-    if config.simulation['gain'] != None:
-        img = ApplyGain(img, gain=config.simulation['gain'], nsecy=1, nsecx=1, seed=seed+7)
+    if config.simulation.gain is not None:
+        img = ApplyGain(img, gain=config.simulation.gain, nsecy=1, nsecx=1, seed=seed+7)
+
 
     return img
 
 #get nphotons from given mag in i band for CSST
 def mag2photon(mag):
+    """
+    Convert AB magnitude to number of photons for CSST i-band.
+
+    Args:
+        mag (float): AB magnitude.
+
+    Returns:
+        float: Number of photons.
+    """
     # convert the AB magnitude to photons
     # mag = -2.5*log10(fnu) - 48.6
     # fnu is in unit of erg s-1 cm-2 Hz-1
@@ -108,6 +154,16 @@ def mag2photon(mag):
 
 #define galaxy in galsimObj
 def get_gal(gal_param=None, shear=None):
+    """
+    Create a GalSim galaxy object based on parameters.
+
+    Args:
+        gal_param (dict): Galaxy parameters (hlr_disk, e1, e2, mag_i).
+        shear (list, optional): Shear to apply [g1, g2].
+
+    Returns:
+        galsim.GSObject: The galaxy object.
+    """
     #thetaR   = gal_param["theta"]
     # bfrac    = gal_param["bfrac"]
     hlr_disk = gal_param["hlr_disk"]
@@ -141,33 +197,61 @@ def get_gal(gal_param=None, shear=None):
     return gal
 
 
-def get_psf(psf_pars):
+def get_psf(psf_pars, config):
+    """
+    Create a GalSim PSF object based on parameters.
+
+    Args:
+        psf_pars (dict): PSF parameters (beta, fwhm, e1, e2).
+        config (Config): Configuration object.
+
+    Returns:
+        galsim.GSObject: The PSF object.
+    """
     
-    # psf = galsim.Airy(
-    #     psf_pars[3]/1.025,
-    #     flux=1.0,
-    #     obscuration=0.,
-    #     scale_unit=galsim.arcsec
-    # ).shear(g1=psf_pars[0], g2=psf_pars[1])
+    psf = galsim.Moffat(
+        beta=psf_pars['beta'],
+        fwhm=psf_pars['fwhm'],
+        flux=1.,
+    ).shear(g1=psf_pars['e1'], 
+            g2=psf_pars['e2'])
     
-    # One example of CSST-like PSF
-    with fits.open('../../data/csst_psf_9999.fits') as f:
-        psf_im = f[0].data
+    # # One example of CSST-like PSF
+    # with fits.open(config.simulation.psf_path) as f:
+    #     psf_im = f[0].data
         
-    img = galsim.ImageF(psf_im, scale=config.simulation['pixel_size'])
-    psf = galsim.InterpolatedImage(img)
+    # img = galsim.ImageF(psf_im, scale=config.simulation.pixel_size)
+
+    # psf = galsim.InterpolatedImage(img)
 
     return psf
 
 
-def get_sim(gal_param, psf_param, shear=None):
+def get_sim(gal_param, psf_param, config, shear=None):
+    """
+    Simulate a galaxy image with PSF and noise.
+
+    Args:
+        gal_param (dict): Galaxy parameters.
+        psf_param (dict): PSF parameters.
+        config (Config): Configuration object.
+        shear (list, optional): Shear to apply [g1, g2].
+
+    Returns:
+        tuple: A tuple containing:
+            - gal_im (np.ndarray): The simulated galaxy image with noise.
+            - clean_gal (np.ndarray): The clean galaxy image (no noise).
+            - psf_im (np.ndarray): The PSF image.
+            - label (np.ndarray): The label vector.
+    """
     
-    scale = config.simulation['pixel_size']
-    gal_stamp = config.simulation['galaxy_stamp_size']
-    psf_stamp = config.simulation['psf_stamp_size']
+    scale = config.simulation.pixel_size
+    gal_stamp = config.simulation.galaxy_stamp_size
+    psf_stamp = config.simulation.psf_stamp_size
     
     gal = get_gal(gal_param=gal_param, shear=shear)
-    psf = get_psf(psf_param)
+    psf = get_psf(psf_param, config)
+
     gal = galsim.Convolve(psf, gal)
 
     phot= gal.drawImage(method='phot', poisson_flux=False, save_photons=True, scale=scale).photons
@@ -180,7 +264,8 @@ def get_sim(gal_param, psf_param, shear=None):
     sensor.accumulate(phot, stamp)
     
     clean_gal = stamp.array.copy()
-    stamp = addDetNoise(stamp)
+    stamp = addDetNoise(stamp, config)
+
         
     gal_im = stamp.array
     psf_im = psf.drawImage(nx=psf_stamp,ny=psf_stamp,scale=scale).array
